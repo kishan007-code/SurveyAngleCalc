@@ -1,0 +1,165 @@
+/* ============================================
+   Root Variables & Global Theme
+   ============================================ */
+:root {
+    --bg: #0f2541;
+    --card: #1f2d3a;
+    --accent: #06a9c6;
+    --muted: #ffffff;
+
+    --text-main: #ebebeb;
+    --text-dark: #012;
+
+    --border-light: rgba(255, 255, 255, 0.04);
+    --border-head: rgba(255, 255, 255, 0.08);
+
+    --radius: 8px;
+}
+
+/* ============================================
+   Base Layout & Typography
+   ============================================ */
+body {
+    margin: 16px;
+    color: var(--text-main);
+    background: linear-gradient(180deg, #16064a, #3f0000);
+}
+
+/* cleaner h1 class */
+.h1 {
+    margin: 0 0 12px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.9px;
+    font-family:'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif
+}
+
+/* ============================================
+   Toolbar
+   ============================================ */
+.toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+button {
+    background: var(--accent);
+    border: none;
+    color: var(--text-dark);
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s ease;
+    box-shadow: 0 3px 8px rgba(6, 182, 212, 0.25);
+}
+
+button:hover {
+    opacity: 0.92;
+    transform: translateY(-1px);
+}
+
+.btn-ghost {
+    background: #0b2a36;
+    color: #cceff6;
+    box-shadow: none;
+}
+
+/* ============================================
+   Table Styling
+   ============================================ */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    background: var(--card);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+thead th {
+    background: #042b3b;
+    padding: 10px;
+    border: 1px solid var(--border-head);
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+
+td, th {
+    padding: 8px;
+    border: 1px solid var(--border-light);
+    vertical-align: middle;
+}
+
+/* Station column */
+.station {
+    background: #06202b;
+    font-weight: 700;
+    text-align: center;
+    color: #d9f6ff;
+}
+
+/* ============================================
+   DMS Inputs
+   ============================================ */
+.dms {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+}
+
+.dms input {
+    width: 54px;
+    padding: 6px;
+    border-radius: 6px;
+    border: 1px solid var(--border-head);
+    background: #02121a;
+    color: var(--text-main);
+    text-align: center;
+    font-weight: 500;
+    transition: 0.15s ease;
+}
+
+.dms input:focus {
+    border-color: var(--accent);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.25);
+}
+
+/* ============================================
+   Result Cells
+   ============================================ */
+.result {
+    background: #052233;
+    font-weight: 700;
+    text-align: center;
+    color: #d7f3ff;
+    letter-spacing: 0.2px;
+}
+
+/* Small text utility */
+.small {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+/* Right-aligned controls */
+.controls {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* ============================================
+   Responsive
+   ============================================ */
+@media (max-width: 880px) {
+    .dms input {
+        width: 44px;
+        padding: 5px;
+    }
+}

@@ -1,361 +1,41 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Survey Angle Calculator — Selection Mode & Row Insert</title>
-<style>
-  :root{--bg:#323b46;--card:#a4bdd5;--accent:#06b6d4;--muted:#94a3b8;--sel:#ffb86b}
-  *{box-sizing:border-box}
-  body{font-family:Inter, Arial, sans-serif;margin:16px;background:linear-gradient(180deg,#031021,#071425);color:#e6eef6}
-  h1{margin:0 0 12px;font-size:18px}
-  .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
-  button{background:var(--accent);border:none;color:#012;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:600}
-  .btn-ghost{background:#0b2a36;color:#cceff6}
-  .small{font-size:12px;color:var(--muted)}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  thead th{background:#253b45;padding:10px;border:1px solid rgba(255,255,255,0.03);font-weight:700}
-  td, th{padding:8px;border:1px solid rgba(255,255,255,0.04);vertical-align:middle}
-  .station{background:#1a1a3e;font-weight:700;text-align:center}
-  .dms{display:flex;gap:6px;justify-content:center}
-  .dms input{width:54px;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:#02121a;color:#e6eef6;text-align:center}
-  .result{background:#052233;font-weight:700;text-align:center;white-space:pre-wrap}
-  .selected{outline:3px solid var(--sel)}
-  .header-edit{background:transparent;border:none;color:inherit;font-weight:700;text-align:center;width:100%}
-  @media(max-width:880px){ .dms input{width:44px;padding:5px} }
-</style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AngleKAL-C</title>
+
+<link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-<h1>Survey Angle Kal-C</h1>
+<h1>Survey Angle Calculator: AngleKAL-C</h1>
+
 <div class="toolbar">
   <button id="addStation">Add Station</button>
-  <button id="toggleSelect">Start Selection</button>
-  <button id="addRowAbove">Add Row Above</button>
-  <button id="addRowBelow">Add Row Below</button>
-  <button id="delRow">Delete Station</button>
-  <button id="addColLeft">Add Column Left</button>
-  <button id="addColRight">Add Column Right</button>
-  <button id="mergeSel">Merge Selected</button>
-  <button id="unmergeSel">Unmerge Selected</button>
-  <button id="delCol">Delete Column</button>
   <button id="exportCsv" class="btn-ghost">Export CSV</button>
-  <button id="exportXlsx" class="btn-ghost">Export XLSX</button>
-  <button id="normalizeAll" class="btn-ghost">Normalize All DMS</button>
-  <label class="small"><input type="checkbox" id="autoNormalize" checked> Auto-normalize</label>
+  <button id="normalizeAll">Normalize All DMS</button>
+  <label class="small" style="margin-left:8px"><input type="checkbox" id="autoNormalize" checked> Auto-normalize</label>
   <label class="small"><input type="checkbox" id="showDecimal"> Show decimals</label>
+  <div class="controls"></div>
 </div>
 
 <table id="angleTable" aria-label="angle-table">
   <thead>
-    <tr id="headerRow"></tr>
+    <tr>
+      <th contenteditable="true">Station</th>
+      <th contenteditable="true">SET 1: Face Readings</th>
+      <th contenteditable="true">SET 1 FL/FR Mean</th>
+      <th contenteditable="true">SET 1 H. Angle</th>
+      <th contenteditable="true">SET 2: Face Readings</th>
+      <th contenteditable="true">SET 2 FL/FR Mean</th>
+      <th contenteditable="true">SET 2 H. Angle</th>
+      <th contenteditable="true">Final H. Angle</th>
+    </tr>
   </thead>
   <tbody id="tbody"></tbody>
 </table>
 
-<script>
-// ---------- Utilities ----------
-function dmsToDecimal(d,m,s){
-  if(d===''||m===''||s==='') return null;
-  const D = Number(d), M = Number(m), S = Number(s);
-  if(Number.isNaN(D)||Number.isNaN(M)||Number.isNaN(S)) return null;
-  const sign = D < 0 ? -1 : 1;
-  return sign * (Math.abs(D) + Math.abs(M)/60 + Math.abs(S)/3600);
-}
-function decimalToDms(dec){
-  if(dec==null || Number.isNaN(dec)) return '';
-  const sign = dec < 0 ? -1 : 1;
-  dec = Math.abs(dec);
-  const d = Math.floor(dec);
-  const m = Math.floor((dec - d) * 60);
-  const s = ((dec - d) * 3600 - m * 60).toFixed(2);
-  return (sign<0?'-':'') + d + '° ' + m + "' " + s + '"';
-}
-function normalizeOne(d,m,s){
-  let D = Number(d)||0, M = Number(m)||0, S = Number(s)||0;
-  if(Math.abs(S) >= 60){ const add=Math.trunc(S/60); M+=add; S=S-add*60; }
-  if(Math.abs(M) >= 60){ const add=Math.trunc(M/60); D+=add; M=M-add*60; }
-  if(S < 0){ M -=1; S +=60; }
-  if(M < 0){ D -=1; M +=60; }
-  return {d:Math.trunc(D), m:Math.trunc(M), s: Number(S.toFixed(2))};
-}
-
-// ---------- Data model ----------
-let stationCounter = 0;
-let stations = [];
-let extraColumns = [];
-
-function createStation(name){
-  const id = 'st' + (stationCounter++);
-  return {
-    id,
-    name: name || String.fromCharCode(65 + (stationCounter-1)%26),
-    set1: {FL1:{d:'',m:'',s:''}, FL2:{d:'',m:'',s:''}, FR1:{d:'',m:'',s:''}, FR2:{d:'',m:'',s:''}, FLmean:null, FRmean:null, HA:null},
-    set2: {FL1:{d:'',m:'',s:''}, FL2:{d:'',m:'',s:''}, FR1:{d:'',m:'',s:''}, FR2:{d:'',m:'',s:''}, FLmean:null, FRmean:null, HA:null},
-    finalMean:null
-  };
-}
-
-// fixed base columns
-const baseColumns = [
-  {key:'station', title:'Station'},
-  {key:'s1faces', title:'SET1: Face Readings'},
-  {key:'s1means', title:'SET1 FL/FR Mean'},
-  {key:'s1ha', title:'SET1 H. Angle'},
-  {key:'s2faces', title:'SET2: Face Readings'},
-  {key:'s2means', title:'SET2 FL/FR Mean'},
-  {key:'s2ha', title:'SET2 H. Angle'},
-  {key:'final', title:'Final H. Angle'}
-];
-
-// ---------- Rendering ----------
-const headerRow = document.getElementById('headerRow');
-const tbody = document.getElementById('tbody');
-let selectionMode = false; // new: selection only active when true
-
-function buildHeaderCells(){
-  headerRow.innerHTML = '';
-  const allCols = [...baseColumns, ...extraColumns];
-  allCols.forEach((col, ci)=>{
-    const th = document.createElement('th');
-    const input = document.createElement('input');
-    input.className = 'header-edit';
-    input.value = col.title || col.key;
-    input.dataset.colIndex = ci;
-    input.addEventListener('change', (e)=>{ col.title = e.target.value; });
-    th.appendChild(input);
-    headerRow.appendChild(th);
-  });
-}
-
-function renderTable(){
-  buildHeaderCells();
-  tbody.innerHTML = '';
-  stations.forEach((st)=>{
-    const obs = ['FL1','FL2','FR1','FR2'];
-    for(let r=0;r<4;r++){
-      const tr = document.createElement('tr');
-      if(r===0){
-        const td = document.createElement('td'); td.className='station'; td.rowSpan=4; td.contentEditable=true; td.textContent=st.name; td.addEventListener('input', e=>st.name=e.target.textContent);
-        tr.appendChild(td);
-      }
-      const tdS1Face = document.createElement('td'); tdS1Face.appendChild(makeDmsInputs(st.id,'set1',obs[r])); tr.appendChild(tdS1Face);
-      if(obs[r]==='FL2'){ const td = document.createElement('td'); td.className='result'; td.id = st.id + '-s1-flmean'; tr.appendChild(td);} 
-      else if(obs[r]==='FR2'){ const td = document.createElement('td'); td.className='result'; td.id = st.id + '-s1-frmean'; tr.appendChild(td);} 
-      else { tr.appendChild(document.createElement('td')); }
-      if(r===0){ const td = document.createElement('td'); td.className='result'; td.rowSpan=4; td.id = st.id + '-s1-ha'; td.style.verticalAlign='middle'; tr.appendChild(td); }
-      const tdS2Face = document.createElement('td'); tdS2Face.appendChild(makeDmsInputs(st.id,'set2',obs[r])); tr.appendChild(tdS2Face);
-      if(obs[r]==='FL2'){ const td = document.createElement('td'); td.className='result'; td.id = st.id + '-s2-flmean'; tr.appendChild(td);} 
-      else if(obs[r]==='FR2'){ const td = document.createElement('td'); td.className='result'; td.id = st.id + '-s2-frmean'; tr.appendChild(td);} 
-      else { tr.appendChild(document.createElement('td')); }
-      if(r===0){ const td = document.createElement('td'); td.className='result'; td.rowSpan=4; td.id = st.id + '-s2-ha'; td.style.verticalAlign='middle'; tr.appendChild(td); }
-      if(r===0){ const td = document.createElement('td'); td.className='result'; td.rowSpan=4; td.id = st.id + '-final'; td.style.verticalAlign='middle'; tr.appendChild(td); }
-      extraColumns.forEach((ec, eci)=>{ const td = document.createElement('td'); td.contentEditable=true; td.dataset.extraIndex = eci; tr.appendChild(td); });
-      tbody.appendChild(tr);
-    }
-  });
-  attachCellSelection();
-  computeAll();
-}
-
-function makeDmsInputs(stId, setName, obsKey){
-  const wrap = document.createElement('div'); wrap.className='dms';
-  ['d','m','s'].forEach(u=>{
-    const inp = document.createElement('input'); inp.type='number'; inp.placeholder=u; inp.dataset.st=stId; inp.dataset.set=setName; inp.dataset.obs=obsKey; inp.dataset.unit=u;
-    inp.addEventListener('input', onDmsInput);
-    wrap.appendChild(inp);
-  });
-  return wrap;
-}
-
-// ---------- Selection handling (now gated by selectionMode) ----------
-let selectedCells = new Set();
-function attachCellSelection(){
-  // remove existing click handlers by cloning nodes
-  document.querySelectorAll('#tbody td, #headerRow th').forEach(node=>{
-    const newNode = node.cloneNode(true);
-    node.parentNode.replaceChild(newNode, node);
-  });
-  selectedCells.clear();
-
-  if(!selectionMode) return; // do not attach handlers unless selectionMode is ON
-
-  // header cells selectable as well
-  document.querySelectorAll('#headerRow th, #tbody td').forEach(td=>{
-    td.classList.remove('selected');
-    td.addEventListener('click', (e)=>{
-      e.stopPropagation();
-      if(td.classList.contains('selected')){ td.classList.remove('selected'); selectedCells.delete(td); }
-      else{ td.classList.add('selected'); selectedCells.add(td); }
-    });
-  });
-}
-
-// ---------- Toggle selection mode UI ----------
-const toggleSelectBtn = document.getElementById('toggleSelect');
-toggleSelectBtn.addEventListener('click', ()=>{
-  selectionMode = !selectionMode;
-  toggleSelectBtn.textContent = selectionMode ? 'Stop Selection' : 'Start Selection';
-  attachCellSelection();
-});
-
-// ---------- DMS input ----------
-function onDmsInput(e){
-  const inp = e.target; const stId = inp.dataset.st; const setName = inp.dataset.set; const obs = inp.dataset.obs; const unit = inp.dataset.unit;
-  const st = stations.find(s=>s.id===stId); if(!st) return; st[setName][obs][unit] = inp.value;
-  if(document.getElementById('autoNormalize').checked){ const n = normalizeOne(st[setName][obs].d||0, st[setName][obs].m||0, st[setName][obs].s||0); st[setName][obs].d=n.d; st[setName][obs].m=n.m; st[setName][obs].s=n.s; document.querySelectorAll(`#tbody input[data-st='${stId}'][data-set='${setName}'][data-obs='${obs}']`).forEach(i=>{ if(i.dataset.unit==='d') i.value=n.d; if(i.dataset.unit==='m') i.value=n.m; if(i.dataset.unit==='s') i.value=n.s; }); }
-  computeAll();
-}
-
-// ---------- Calculations ----------
-function computeAll(){
-  stations.forEach(st=>{
-    const s1=st.set1; const s2=st.set2;
-    const fl1_s1 = dmsToDecimal(s1.FL1.d,s1.FL1.m,s1.FL1.s); const fl2_s1 = dmsToDecimal(s1.FL2.d,s1.FL2.m,s1.FL2.s);
-    const fr1_s1 = dmsToDecimal(s1.FR1.d,s1.FR1.m,s1.FR1.s); const fr2_s1 = dmsToDecimal(s1.FR2.d,s1.FR2.m,s1.FR2.s);
-    s1.FLmean = (fl1_s1!=null && fl2_s1!=null)?(fl1_s1+fl2_s1)/2:null; s1.FRmean = (fr1_s1!=null && fr2_s1!=null)?(fr1_s1+fr2_s1)/2:null; s1.HA = (s1.FLmean!=null && s1.FRmean!=null)?(s1.FLmean+s1.FRmean)/2:null;
-    const fl1_s2 = dmsToDecimal(s2.FL1.d,s2.FL1.m,s2.FL1.s); const fl2_s2 = dmsToDecimal(s2.FL2.d,s2.FL2.m,s2.FL2.s);
-    const fr1_s2 = dmsToDecimal(s2.FR1.d,s2.FR1.m,s2.FR1.s); const fr2_s2 = dmsToDecimal(s2.FR2.d,s2.FR2.m,s2.FR2.s);
-    s2.FLmean = (fl1_s2!=null && fl2_s2!=null)?(fl1_s2+fl2_s2)/2:null; s2.FRmean = (fr1_s2!=null && fr2_s2!=null)?(fr1_s2+fr2_s2)/2:null; s2.HA = (s2.FLmean!=null && s2.FRmean!=null)?(s2.FLmean+s2.FRmean)/2:null;
-    st.finalMean = (s1.HA!=null && s2.HA!=null)?(s1.HA + s2.HA)/2:null;
-  });
-
-  stations.forEach(st=>{
-    const elS1FL = document.getElementById(st.id+'-s1-flmean'); const elS1FR = document.getElementById(st.id+'-s1-frmean'); const elS1HA = document.getElementById(st.id+'-s1-ha');
-    const elS2FL = document.getElementById(st.id+'-s2-flmean'); const elS2FR = document.getElementById(st.id+'-s2-frmean'); const elS2HA = document.getElementById(st.id+'-s2-ha');
-    const elFinal = document.getElementById(st.id+'-final');
-    const showDec = document.getElementById('showDecimal').checked;
-    if(elS1FL) elS1FL.textContent = st.set1.FLmean!=null ? decimalToDms(st.set1.FLmean) : '';
-    if(elS1FR) elS1FR.textContent = st.set1.FRmean!=null ? decimalToDms(st.set1.FRmean) : '';
-    if(elS1HA) elS1HA.textContent = st.set1.HA!=null ? decimalToDms(st.set1.HA) : '';
-    if(elS2FL) elS2FL.textContent = st.set2.FLmean!=null ? decimalToDms(st.set2.FLmean) : '';
-    if(elS2FR) elS2FR.textContent = st.set2.FRmean!=null ? decimalToDms(st.set2.FRmean) : '';
-    if(elS2HA) elS2HA.textContent = st.set2.HA!=null ? decimalToDms(st.set2.HA) : '';
-    if(elFinal) elFinal.textContent = st.finalMean!=null ? decimalToDms(st.finalMean) : '';
-        if(showDec){
-      if(elS1FL && st.set1.FLmean!=null) elS1FL.textContent += "\\n(" + st.set1.FLmean.toFixed(6) + "°)";
-      if(elS1FR && st.set1.FRmean!=null) elS1FR.textContent += "\\n(" + st.set1.FRmean.toFixed(6) + "°)";
-      if(elS1HA && st.set1.HA!=null) elS1HA.textContent += "\\n(" + st.set1.HA.toFixed(6) + "°)";
-      if(elS2FL && st.set2.FLmean!=null) elS2FL.textContent += "\\n(" + st.set2.FLmean.toFixed(6) + "°)";
-      if(elS2FR && st.set2.FRmean!=null) elS2FR.textContent += "\\n(" + st.set2.FRmean.toFixed(6) + "°)";
-      if(elS2HA && st.set2.HA!=null) elS2HA.textContent += "\\n(" + st.set2.HA.toFixed(6) + "°)";
-      if(elFinal && st.finalMean!=null) elFinal.textContent += "\\n(" + st.finalMean.toFixed(6) + "°)";
-        }
-  });
-}
-
-// ---------- Column management ----------
-function addSimpleColumn(side){
-  const total = baseColumns.length + extraColumns.length;
-  const idx = parseInt(prompt('Enter column index (0..' + (total-1) + ') to insert relative to. 0=Station.'));
-  if(isNaN(idx)) return; const title = prompt('Enter column title')||'Extra';
-  let insertPos = Math.max(0, Math.min(extraColumns.length, idx - baseColumns.length + (side==='right'?1:0)));
-  extraColumns.splice(insertPos,0,{id:'ec'+Date.now(), title}); renderTable();
-}
-function deleteColumn(){ const total = baseColumns.length + extraColumns.length; const idx = parseInt(prompt('Enter column index to delete (0..'+(total-1)+')')); if(isNaN(idx)) return; if(idx < baseColumns.length){ if(!confirm('Deleting a base column may break layout. Proceed?')) return; } const extraIdx = idx - baseColumns.length; if(extraIdx>=0 && extraIdx<extraColumns.length){ extraColumns.splice(extraIdx,1); renderTable(); } else { alert('Only extra columns can be deleted automatically.'); } }
-
-// ---------- Row management: single-row add/delete ----------
-function getSelectedRowReference(){
-  // returns {type:'header'|'tbody', index:rowIndex, cell:element}
-  const sel = document.querySelector('.selected');
-  if(!sel) return null;
-  if(sel.tagName === 'TH' || sel.closest('thead')){
-    // header selected
-    return {type:'header', index: Array.from(headerRow.children).indexOf(sel), cell: sel};
-  }
-  const rows = Array.from(document.querySelectorAll('#tbody tr'));
-  const tr = sel.closest('tr'); if(!tr) return null;
-  const rowIndex = rows.indexOf(tr);
-  return {type:'tbody', index: rowIndex, cell: sel};
-}
-
-function addRowAbove(){
-  const ref = getSelectedRowReference();
-  if(!ref){ alert('Enable selection mode and select a cell (header or body) to add a row above.'); return; }
-  if(ref.type === 'header'){
-    // insert at top of tbody
-    insertEmptyRowAt(0);
-  } else {
-    insertEmptyRowAt(ref.index);
-  }
-  renderTable();
-}
-function addRowBelow(){
-  const ref = getSelectedRowReference();
-  if(!ref){ alert('Enable selection mode and select a cell (header or body) to add a row below.'); return; }
-  if(ref.type === 'header'){
-    insertEmptyRowAt(0);
-  } else {
-    insertEmptyRowAt(ref.index+1);
-  }
-  renderTable();
-}
-
-function insertEmptyRowAt(rowIndex){
-  // rowIndex between 0 and stations.length
-  // we will insert a new station object but with empty name and no merged cells: to keep model consistent, insert a station object and render; the new station occupies 4 rows
-  const newSt = createStation('');
-  stations.splice(rowIndex,0,newSt);
-}
-
-function deleteStation(){
-  const ref = getSelectedRowReference();
-  if(!ref){ alert('Enable selection mode and select a cell inside the station to delete'); return; }
-  if(ref.type === 'header'){ alert('Cannot delete header as a station. Select a station row.'); return; }
-  const stationIndex = ref.index;
-  if(!confirm('Delete station at index ' + (stationIndex+1) + '?')) return;
-  stations.splice(stationIndex,1);
-  renderTable();
-}
-
-// ---------- Merge / Unmerge ----------
-function mergeSelected(){
-  const selected = Array.from(document.querySelectorAll('#tbody td.selected, #headerRow th.selected'));
-  if(selected.length<2){ alert('Select multiple cells to merge'); return; }
-  const allRows = Array.from(document.querySelectorAll('#tbody tr'));
-  // for header merges we handle only header-level merges or body-level merges
-  let rmin=Infinity, rmax=-Infinity, cmin=Infinity, cmax=-Infinity;
-  selected.forEach(td=>{ const tr = td.closest('tr'); const r = allRows.indexOf(tr); const c = Array.from(tr.children).indexOf(td); if(r<rmin) rmin=r; if(r>rmax) rmax=r; if(c<cmin) cmin=c; if(c>cmax) cmax=c; });
-  for(let rr=rmin; rr<=rmax; rr++){ for(let cc=cmin; cc<=cmax; cc++){ const cell = allRows[rr].children[cc]; if(!cell || !cell.classList.contains('selected')){ alert('Selection must form a complete rectangle'); return; } } }
-  const tl = allRows[rmin].children[cmin]; const rowspan = rmax - rmin + 1; const colspan = cmax - cmin + 1; tl.rowSpan = rowspan; tl.colSpan = colspan;
-  for(let rr=rmin; rr<=rmax; rr++){ for(let cc=cmin; cc<=cmax; cc++){ if(rr===rmin && cc===cmin) continue; const cell = allRows[rr].children[cc]; if(cell) cell.remove(); } }
-  selected.forEach(td=>td.classList.remove('selected'));
-}
-function unmergeSelected(){ const td = document.querySelector('#tbody td.selected, #headerRow th.selected'); if(!td){ alert('Select a merged cell to unmerge'); return; } const rs = td.rowSpan||1, cs = td.colSpan||1; if(rs<=1 && cs<=1){ alert('Cell is not merged'); return; } const rows = Array.from(document.querySelectorAll('#tbody tr')); const rIdx = rows.indexOf(td.parentElement); const cIdx = Array.from(td.parentElement.children).indexOf(td); td.rowSpan = 1; td.colSpan = 1; for(let rr=rIdx; rr<rIdx+rs; rr++){ for(let cc=cIdx; cc<cIdx+cs; cc++){ if(rr===rIdx && cc===cIdx) continue; const row = rows[rr]; const ref = row.children[cc] || null; const newTd = document.createElement('td'); newTd.textContent=''; if(ref) row.insertBefore(newTd, ref); else row.appendChild(newTd); } } td.classList.remove('selected'); }
-
-// ---------- Export ----------
-function exportCSV(){
-  const lines = [];
-  const headers = Array.from(headerRow.children).map(th=>th.firstChild.value.replace(/,/g,''));
-  lines.push(headers.join(','));
-  const rows = Array.from(document.querySelectorAll('#tbody tr'));
-  rows.forEach(tr=>{
-    const cells = Array.from(tr.children).map(td=>td.innerText.replace(/\n/g,' ').replace(/,/g,''));
-    lines.push(cells.join(','));
-  });
-  const csv = lines.join('\n');
-  const blob = new Blob([csv], {type:'text/csv'});
-  const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='survey_angles.csv'; a.click(); URL.revokeObjectURL(url);
-}
-async function exportXLSX(){ if(!window.XLSX){ await loadScript('https://cdn.sheetjs.com/xlsx-0.19.2/package/dist/xlsx.full.min.js'); } const ws_data = []; ws_data.push(Array.from(headerRow.children).map(th=>th.firstChild.value)); const rows = Array.from(document.querySelectorAll('#tbody tr')); rows.forEach(tr=>{ ws_data.push(Array.from(tr.children).map(td=>td.innerText)); }); const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(ws_data); XLSX.utils.book_append_sheet(wb, ws, 'Sheet1'); XLSX.writeFile(wb, 'survey_angles.xlsx'); }
-function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
-
-// ---------- Bootstrap & bindings ----------
-for(let i=0;i<5;i++) stations.push(createStation());
-renderTable();
-
-document.getElementById('addStation').addEventListener('click', ()=>{ stations.push(createStation()); renderTable(); });
-document.getElementById('addRowAbove').addEventListener('click', addRowAbove);
-document.getElementById('addRowBelow').addEventListener('click', addRowBelow);
-document.getElementById('delRow').addEventListener('click', deleteStation);
-document.getElementById('addColLeft').addEventListener('click', ()=>addSimpleColumn('left'));
-document.getElementById('addColRight').addEventListener('click', ()=>addSimpleColumn('right'));
-document.getElementById('mergeSel').addEventListener('click', mergeSelected);
-document.getElementById('unmergeSel').addEventListener('click', unmergeSelected);
-document.getElementById('delCol').addEventListener('click', deleteColumn);
-document.getElementById('exportCsv').addEventListener('click', exportCSV);
-document.getElementById('exportXlsx').addEventListener('click', exportXLSX);
-document.getElementById('normalizeAll').addEventListener('click', ()=>{ document.getElementById('autoNormalize').checked=false; document.querySelectorAll('#tbody input').forEach(i=>i.dispatchEvent(new Event('input'))); });
-
-</script>
+<script src="script.js"></script>
 </body>
 </html>
