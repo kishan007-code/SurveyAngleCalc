@@ -3,7 +3,7 @@
    ============================================ */
 :root {
     --bg: #0f2541;
-    --card: #7b7d7e;
+    --card: #123b4f;
     --accent: #06a9c6;
     --muted: #ffffff;
 
@@ -89,7 +89,7 @@ thead th {
     background: #042b3b;
     padding: 10px;
     border: 2px solid var(--border-head);
-    border-color: rgba(60, 67, 32, 0.527);
+    border-color: rgba(255, 255, 255, 0.527);
     font-weight: 700;
     letter-spacing: 0.3px;
 }
@@ -97,7 +97,7 @@ thead th {
 td, th {
     padding: 8px;
     border: 2px solid var(--border-light);
-    border-color: #37451f80;
+    border-color: #ffffff80;
     vertical-align: middle;
 }
 

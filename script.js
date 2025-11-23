@@ -192,28 +192,45 @@ function onDmsChange(e){
   computeAll();
 }
 
-/* ---------- Compute ---------- */
+/* ---------- small helper: normalize angle to 0..360 ---------- */
+function norm360(angle){
+  // keep numeric; handle null/undefined
+  if(angle == null || Number.isNaN(angle)) return null;
+  let a = Number(angle) % 360;
+  if(a < 0) a += 360;
+  return a;
+}
+
+/* ---------- Compute (REPLACED) ---------- */
 function computeAll(){
   stations.forEach(st=>{
+    // Set1
     const s1 = st.set1;
     const fl1_s1 = dmsToDecimal(s1.FL1.d, s1.FL1.m, s1.FL1.s);
     const fl2_s1 = dmsToDecimal(s1.FL2.d, s1.FL2.m, s1.FL2.s);
     const fr1_s1 = dmsToDecimal(s1.FR1.d, s1.FR1.m, s1.FR1.s);
     const fr2_s1 = dmsToDecimal(s1.FR2.d, s1.FR2.m, s1.FR2.s);
-    s1.FLmean = (fl1_s1!=null && fl2_s1!=null) ? (fl1_s1 + fl2_s1)/2 : null;
-    s1.FRmean = (fr1_s1!=null && fr2_s1!=null) ? (fr1_s1 + fr2_s1)/2 : null;
-    s1.HA = (s1.FLmean!=null && s1.FRmean!=null) ? (s1.FLmean + s1.FRmean)/2 : null;
 
+    // Compute face angles as differences (FL2 - FL1, FR2 - FR1) normalized to 0..360
+    s1.FLmean = (fl1_s1!=null && fl2_s1!=null) ? norm360(fl2_s1 - fl1_s1) : null;
+    s1.FRmean = (fr1_s1!=null && fr2_s1!=null) ? norm360(fr2_s1 - fr1_s1) : null;
+
+    // Set horizontal angle = arithmetic mean of FL and FR face angles (if both present)
+    s1.HA = (s1.FLmean!=null && s1.FRmean!=null) ? ((s1.FLmean + s1.FRmean) / 2) : null;
+
+    // Set2
     const s2 = st.set2;
     const fl1_s2 = dmsToDecimal(s2.FL1.d, s2.FL1.m, s2.FL1.s);
     const fl2_s2 = dmsToDecimal(s2.FL2.d, s2.FL2.m, s2.FL2.s);
     const fr1_s2 = dmsToDecimal(s2.FR1.d, s2.FR1.m, s2.FR1.s);
     const fr2_s2 = dmsToDecimal(s2.FR2.d, s2.FR2.m, s2.FR2.s);
-    s2.FLmean = (fl1_s2!=null && fl2_s2!=null) ? (fl1_s2 + fl2_s2)/2 : null;
-    s2.FRmean = (fr1_s2!=null && fr2_s2!=null) ? (fr1_s2 + fr2_s2)/2 : null;
-    s2.HA = (s2.FLmean!=null && s2.FRmean!=null) ? (s2.FLmean + s2.FRmean)/2 : null;
 
-    st.finalMean = (s1.HA!=null && s2.HA!=null) ? (s1.HA + s2.HA)/2 : null;
+    s2.FLmean = (fl1_s2!=null && fl2_s2!=null) ? norm360(fl2_s2 - fl1_s2) : null;
+    s2.FRmean = (fr1_s2!=null && fr2_s2!=null) ? norm360(fr2_s2 - fr1_s2) : null;
+    s2.HA = (s2.FLmean!=null && s2.FRmean!=null) ? ((s2.FLmean + s2.FRmean) / 2) : null;
+
+    // Final mean uses only Set1 and Set2 HAs as requested
+    st.finalMean = (s1.HA!=null && s2.HA!=null) ? ((s1.HA + s2.HA) / 2) : null;
   });
 
   updateResultCells();
