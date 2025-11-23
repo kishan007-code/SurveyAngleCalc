@@ -3,14 +3,14 @@
    ============================================ */
 :root {
     --bg: #0f2541;
-    --card: #1f2d3a;
+    --card: #7b7d7e;
     --accent: #06a9c6;
     --muted: #ffffff;
 
     --text-main: #ebebeb;
     --text-dark: #012;
 
-    --border-light: rgba(255, 255, 255, 0.04);
+    --border-light: rgba(0, 0, 0, 0.04);
     --border-head: rgba(255, 255, 255, 0.08);
 
     --radius: 8px;
